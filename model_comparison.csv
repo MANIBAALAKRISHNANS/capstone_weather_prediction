@@ -1,0 +1,4 @@
+,MAE,RMSE,R2,MAPE,Training Time,Inference Time,Model Size
+random_forest,1.5833,1.9863,0.9294,0.0988,3.9278,0.005,2.5
+xgboost,1.6216,2.0359,0.9258,0.1009,0.4338,0.003,1.8
+lstm,3.299,3.9215,0.7248,0.1613,22.6126,0.01,4.2
