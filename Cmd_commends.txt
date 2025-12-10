@@ -1,0 +1,30 @@
+mkdir capstone_weather_prediction-- to create the folder
+cd capstone_weather_prediction
+mkdir data models results
+
+
+cd capstone_weather_prediction
+python generate_sample_data.py      # ~5 sec
+python data_pipeline.py              # ~10 sec
+python ml_training.py                # ~30 sec
+streamlit run app.py                 # Opens dashboard
+
+
+*imp:
+cd capstone_weather_prediction
+python generate_sample_data.py
+python data_pipeline.py
+python ml_training.py
+python -m streamlit run app.py
+
+
+
+cd C:\Users\Asus\capstone_weather_prediction
+
+python -m pip install --upgrade pip
+
+python -m pip install -r requirements.txt
+
+##python -m pip install geolite2
+
+python -m streamlit run app.py

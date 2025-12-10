@@ -1,0 +1,79 @@
+# ⚡ GEOLITE2 ERROR - QUICK FIX (2 MINUTES)
+
+## THE ERROR
+```
+ERROR: Could not find a version that satisfies the requirement geolite2==2.0.0
+ERROR: No matching distribution found for geolite2==2.0.0
+```
+
+## THE SOLUTION
+
+**Remove geolite2 from requirements.txt**
+
+### Step 1: Edit requirements.txt
+Open the file in any text editor and REMOVE or COMMENT this line:
+```
+geolite2==2.0.0
+```
+
+### Step 2: Your requirements.txt should now be:
+```
+streamlit==1.28.1
+pandas==2.0.3
+numpy==1.24.3
+scikit-learn==1.3.0
+xgboost==2.0.0
+tensorflow==2.13.0
+plotly==5.17.0
+requests==2.31.0
+```
+
+### Step 3: Install again
+```bash
+python -m pip install -r requirements.txt
+```
+
+**Should work now!** ✅
+
+---
+
+## THAT'S IT!
+
+Your app will use fallback location and a free API for geolocation.
+No geolite2 needed!
+
+---
+
+## COMPLETE COMMANDS
+
+```bash
+# Navigate
+cd C:\Users\Asus\capstone_weather_prediction
+
+# Upgrade pip
+python -m pip install --upgrade pip
+
+# Install (without geolite2)
+python -m pip install -r requirements.txt
+
+# Run app
+python -m streamlit run app.py
+```
+
+App opens at: http://localhost:8501 ✅
+
+---
+
+## FOR DETAILED HELP
+
+See: **FIX_GEOLITE2_ERROR.txt**
+
+Contains:
+- 3 different solutions
+- Code updates if needed
+- Alternative packages
+- Testing commands
+
+---
+
+**Problem solved in 2 minutes!** 🚀
