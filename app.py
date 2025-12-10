@@ -20,22 +20,45 @@ st.set_page_config(
 )
 
 # =====================================================
+# OPTIONAL TENSORFLOW IMPORT (Safe for deployment)
+# =====================================================
+lstm_model = None
+try:
+    import tensorflow as tf
+    tensorflow_available = True
+except ImportError:
+    tensorflow_available = False
+    st.warning("⚠️ TensorFlow not available. LSTM predictions will be skipped (RF & XGBoost still work).")
+
+# =====================================================
 # LOAD MODELS
 # =====================================================
 @st.cache_resource
 def load_models():
-    """Load all trained models"""
+    """Load all trained models (TensorFlow/LSTM is optional)"""
     try:
         with open('models/random_forest.pkl', 'rb') as f:
             rf_model = pickle.load(f)
+    except Exception as e:
+        st.error(f"Error loading Random Forest model: {e}")
+        rf_model = None
+    
+    try:
         with open('models/xgboost.pkl', 'rb') as f:
             xgb_model = pickle.load(f)
-        import tensorflow as tf
-        lstm_model = tf.keras.models.load_model('models/lstm.h5')
-        return rf_model, xgb_model, lstm_model
     except Exception as e:
-        st.error(f"Error loading models: {e}")
-        return None, None, None
+        st.error(f"Error loading XGBoost model: {e}")
+        xgb_model = None
+    
+    # LSTM is optional - gracefully skip if TensorFlow not available
+    lstm_model_local = None
+    if tensorflow_available:
+        try:
+            lstm_model_local = tf.keras.models.load_model('models/lstm.h5')
+        except Exception as e:
+            st.warning(f"Could not load LSTM model: {e}. Continuing with RF and XGBoost only.")
+    
+    return rf_model, xgb_model, lstm_model_local
 
 # =====================================================
 # FUNCTION: GET USER LOCATION (NO GEOLITE2 NEEDED!)
@@ -160,28 +183,40 @@ def create_features(temperature, humidity, pressure, wind_speed, hour=None, day=
     return features
 
 # =====================================================
-# FUNCTION: MAKE PREDICTIONS
+# FUNCTION: MAKE PREDICTIONS (with optional LSTM)
 # =====================================================
 def make_predictions(features, rf_model, xgb_model, lstm_model):
-    """Make predictions using all three models"""
+    """Make predictions using available models"""
     predictions = {}
     
+    # Random Forest prediction
     try:
         if rf_model:
             predictions['Random Forest'] = rf_model.predict(features)[0]
-    except:
+        else:
+            predictions['Random Forest'] = None
+    except Exception as e:
+        st.error(f"RF prediction error: {e}")
         predictions['Random Forest'] = None
     
+    # XGBoost prediction
     try:
         if xgb_model:
             predictions['XGBoost'] = xgb_model.predict(features)[0]
-    except:
+        else:
+            predictions['XGBoost'] = None
+    except Exception as e:
+        st.error(f"XGBoost prediction error: {e}")
         predictions['XGBoost'] = None
     
+    # LSTM prediction (optional - only if TensorFlow available and model loaded)
     try:
-        if lstm_model:
+        if lstm_model is not None and tensorflow_available:
             predictions['LSTM'] = lstm_model.predict(features, verbose=0)[0][0]
-    except:
+        else:
+            predictions['LSTM'] = None
+    except Exception as e:
+        st.warning(f"LSTM prediction skipped: {e}")
         predictions['LSTM'] = None
     
     return predictions
@@ -230,8 +265,8 @@ def main():
     # Load models
     rf_model, xgb_model, lstm_model = load_models()
     
-    if not all([rf_model, xgb_model, lstm_model]):
-        st.error("❌ Error loading ML models. Please check if model files exist.")
+    if not any([rf_model, xgb_model]):
+        st.error("❌ Error: At least Random Forest or XGBoost model is required.")
         return
     
     # Sidebar for location input
@@ -268,12 +303,34 @@ def main():
                 else:
                     st.warning("City not found, using default")
                     latitude, longitude = auto_lat, auto_lon
-            except:
+            except Exception as e:
+                st.warning(f"Location lookup failed: {e}")
                 latitude, longitude = auto_lat, auto_lon
         else:
             latitude = st.number_input("Latitude", value=auto_lat, format="%.4f")
             longitude = st.number_input("Longitude", value=auto_lon, format="%.4f")
             city = "Custom Location"
+        
+        st.markdown("---")
+        
+        # Model availability status
+        st.subheader("📊 Available Models")
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if rf_model:
+                st.success("✅ Random Forest")
+            else:
+                st.error("❌ RF not loaded")
+        with col2:
+            if xgb_model:
+                st.success("✅ XGBoost")
+            else:
+                st.error("❌ XGB not loaded")
+        with col3:
+            if lstm_model and tensorflow_available:
+                st.success("✅ LSTM")
+            else:
+                st.info("ℹ️ LSTM not available")
         
         st.markdown("---")
         st.info("💡 Real-time weather data from Open-Meteo API (free, no key required)")
@@ -317,25 +374,31 @@ def main():
                 st.success("✅ Forecast generated!")
                 
                 # Display predictions
-                pred_col1, pred_col2, pred_col3 = st.columns(3)
+                pred_cols = st.columns(3)
                 
-                with pred_col1:
-                    st.metric(
-                        "🌲 Random Forest",
-                        f"{predictions['Random Forest']:.2f}°C" if predictions['Random Forest'] else "N/A"
-                    )
+                if rf_model:
+                    with pred_cols[0]:
+                        st.metric(
+                            "🌲 Random Forest",
+                            f"{predictions['Random Forest']:.2f}°C" if predictions['Random Forest'] else "N/A"
+                        )
                 
-                with pred_col2:
-                    st.metric(
-                        "⚡ XGBoost",
-                        f"{predictions['XGBoost']:.2f}°C" if predictions['XGBoost'] else "N/A"
-                    )
+                if xgb_model:
+                    with pred_cols[1]:
+                        st.metric(
+                            "⚡ XGBoost",
+                            f"{predictions['XGBoost']:.2f}°C" if predictions['XGBoost'] else "N/A"
+                        )
                 
-                with pred_col3:
-                    st.metric(
-                        "🧠 LSTM",
-                        f"{predictions['LSTM']:.2f}°C" if predictions['LSTM'] else "N/A"
-                    )
+                if lstm_model and tensorflow_available:
+                    with pred_cols[2]:
+                        st.metric(
+                            "🧠 LSTM",
+                            f"{predictions['LSTM']:.2f}°C" if predictions['LSTM'] else "N/A"
+                        )
+                else:
+                    with pred_cols[2]:
+                        st.metric("🧠 LSTM", "Not Available")
                 
                 # Calculate average and confidence
                 valid_preds = [p for p in predictions.values() if p is not None]
@@ -351,11 +414,11 @@ def main():
     
     with col2:
         st.subheader("📋 Model Info")
-        st.markdown("""
+        st.markdown(f"""
         **Models Used:**
-        - Random Forest
-        - XGBoost
-        - LSTM NN
+        - {'✅ Random Forest' if rf_model else '❌ RF Not loaded'}
+        - {'✅ XGBoost' if xgb_model else '❌ XGB Not loaded'}
+        - {'✅ LSTM NN' if (lstm_model and tensorflow_available) else '⚠️ LSTM Optional'}
         
         **Features:** 26
         **Accuracy:** ±1.92°C
@@ -433,7 +496,7 @@ def main():
     
     This Real-Time Weather Prediction System demonstrates:
     - **Data Pipeline**: Automatic weather data acquisition and processing
-    - **ML Models**: Three different algorithms (Random Forest, XGBoost, LSTM)
+    - **ML Models**: Multiple algorithms (Random Forest, XGBoost, and optional LSTM)
     - **Features**: 26 engineered features for accurate predictions
     - **Real-Time**: Live weather data integration via Open-Meteo API
     - **Accuracy**: ±1.92°C average error
@@ -441,6 +504,9 @@ def main():
     **Project**: Real-Time Weather Prediction using ML & Embedded Systems Concepts
     
     **Status**: ✅ Production Ready
+    
+    **Note**: This app works with or without TensorFlow/LSTM. 
+    If LSTM is unavailable, the system uses Random Forest and XGBoost models.
     """)
 
 if __name__ == "__main__":
